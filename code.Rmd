@@ -1,0 +1,242 @@
+---
+title: "adult_cells"
+author: "Ivan Kouzel"
+date: "2/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load data and create a table with cols = cells, rows = NVE/v1g
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readxl)
+
+##########################################################################################
+# read xls, loop over sheets, take only first column from each sheet, 
+# name column according to the excel sheet, put in the list,
+# transform list into the df
+############
+file_read = "Adult_cells_mmc2.xlsx"
+
+mybiglist <- list()
+
+# options(java.parameters = "- Xmx1024m")
+SheetNames <- gdata::sheetNames(file_read)
+for (i in 1:(gdata::sheetCount(file_read))){
+#  file = xlsx::read.xlsx(file_read, sheetIndex = i, colIndex = 1)
+  file = readxl::read_excel(file_read, sheet = i, cell_cols(1), col_names = FALSE)
+  colnames(file) <- SheetNames[i]
+  tmp <- as.list(file)
+  mybiglist[colnames(file)] <- tmp}
+
+# split into list and df
+
+
+attributes(mybiglist) = list(names = names(mybiglist),
+    row.names=1:max(lengths(mybiglist)), class='data.frame')
+
+head(mybiglist)
+```
+
+## Load an prepare annotations 
+
+```{r, message=FALSE, warning=FALSE}
+library(stringr)
+nve_annot <- readxl::read_xlsx("~/refs/nve_genes_and_GO/BobZimmermann/nve_master_ortholog_table.20190911.xlsx")
+nve_IDs <- nve_annot %>% dplyr::select (GeneId, `ENSEMBL_ID`)
+#nve_IDs %>% select (ENSEMBL_ID) %>% str_replace("NEMVEDRAFT_", "")
+nve_IDs$ENSEMBL_ID <- str_replace(nve_IDs$ENSEMBL_ID, "NEMVEDRAFT_", "") 
+head(nve_IDs)
+```
+
+# Replace 'v1g' names if there is an 'NVE' equivalent 
+
+```{r, message=FALSE, warning=FALSE}
+mybiglist2 = mybiglist
+secondary_NVE <- data.frame(col = "NA", NVE = "NA")
+# loop over each row in each column
+for(i in 1:ncol(mybiglist2)){
+  for(j in 1:nrow(mybiglist2)){
+# if value is NA -> skip it and continue with other
+    if(is.na(mybiglist2[j,i]) == TRUE) {next}
+# else if name starts with ("v1g") an if it is present in nve_IDs$ENSEMBL_ID:
+    else if(startsWith(mybiglist2[j,i], "v1g")){
+      if(mybiglist2[j,i] %in% nve_IDs$ENSEMBL_ID){
+# select corresponding NVE name from DF
+      name <- nve_IDs$GeneId[which(nve_IDs$ENSEMBL_ID == mybiglist2[j,i])]
+      mybiglist2[j,i] <- name[1]
+# if name has length more than 2 char: print 
+        if(length(name) == 2){
+          secondary_NVE=rbind(secondary_NVE,c(names(mybiglist[i]), name[2]))}
+      }}}}
+#library(reshape2)
+#dcast(secondary_NVE, NVE~col)
+head(mybiglist2)
+```
+
+```{r, message=FALSE, warning=FALSE}
+head(secondary_NVE) 
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+############ create list of unique genes
+newdf <- c()
+for(i in 1:ncol(mybiglist2)){
+  newdf = c(newdf,mybiglist2[,i])
+}
+length(newdf)
+uniqueIDs <- sort(newdf) %>% unique()
+# don't have NVE
+#uniqueIDs[!startsWith(uniqueIDs,"NVE")]
+length(uniqueIDs[!startsWith(uniqueIDs,"NVE")])
+# have NVE
+#uniqueIDs[startsWith(uniqueIDs,"NVE")]
+length(uniqueIDs[startsWith(uniqueIDs,"NVE")])
+uniqueNVE <- uniqueIDs[startsWith(uniqueIDs,"NVE")]
+```
+
+```{r}
+### create df with NAs and unique rows
+finalDF <-  as.data.frame(matrix(NA, ncol = ncol(mybiglist2), nrow = length(uniqueNVE)))
+names(finalDF) <- SheetNames 
+rownames(finalDF) <- uniqueNVE
+
+head(finalDF)
+```
+
+```{r, message=FALSE, warning=FALSE}
+### populate df with NVE numbers if they are present in each C
+for(i in 1:ncol(finalDF)){
+  for(j in rownames(finalDF))
+  {if (j %in% mybiglist2[,i]){finalDF[j,i] <- j}
+  }
+  }
+head(finalDF)
+#colSums(finalDF)
+
+# for(i in 1:ncol(finalDF)){
+#   for(j in 1:nrow(finalDF)){
+#     if(is.na(finalDF[j,i]) == TRUE) {next}
+#   }
+# }
+```
+
+```{r, message=FALSE, warning=FALSE}
+file_read = "/Volumes/nve_1/reports/lsd1_fin/data/tables/Polyp.xlsx"
+SheetNames <- gdata::sheetNames(file_read)
+
+Polyp_down = readxl::read_excel(file_read, sheet = SheetNames[1], cell_cols(2:4))
+Polyp_down <- Polyp_down %>% filter(log2FoldChange > 1)
+
+sum(uniqueNVE %in% Polyp_down$GeneId)
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(hablar)
+finalDF2 = finalDF
+for(i in 1:ncol(finalDF2)){
+  for(j in rownames(finalDF2)){
+    if (finalDF2[j,i] %in% Polyp_down$GeneId){finalDF2[j,i] <- Polyp_down$log2FoldChange[which(Polyp_down$GeneId == j)]}
+    else if(!(finalDF2[j,i] %in% Polyp_down$GeneId) & is.na(finalDF2[j,i]) == FALSE){finalDF2[j,i] <- 0} }
+}
+
+df_num <- finalDF2 %>% retype() %>% as.data.frame()
+rownames(df_num) <- rownames(finalDF2)
+head(df_num)
+```
+
+```{r, message=FALSE, warning=FALSE, fig.height=4, fig.width=5}
+ind = c()
+for(i in 1:ncol(df_num)){
+  for(j in 1:nrow(df_num)){
+    if(df_num[j,i] > 1 & is.na(df_num[j,i]) == FALSE) {
+        ind = c(ind, j)
+    }
+  }
+}
+
+ind <- ind %>% sort() %>% unique()
+
+mat = as.matrix(df_num[ind,])
+#str(mat)
+pheatmap::pheatmap(mat, na_col = "#DDDDDD", cluster_rows = FALSE, cluster_cols = FALSE, )
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.height=10}
+mat = as.matrix(df_num)
+#str(mat)
+pheatmap::pheatmap(mat, na_col = "#DDDDDD", cluster_rows = FALSE, cluster_cols = FALSE)
+```
+
+
+
+
+
+
+
+```{r, message=FALSE, warning=FALSE, fig.height=4, fig.width=8}
+ind = c()
+for(i in 1:ncol(df_num)){
+  for(j in 1:nrow(df_num)){
+    if(df_num[j,i] < -1 & is.na(df_num[j,i]) == FALSE) {
+        ind = c(ind, j)
+    }
+  }
+}
+
+ind <- ind %>% sort() %>% unique()
+
+mat = as.matrix(df_num[ind,])
+#str(mat)
+pheatmap::pheatmap(mat, na_col = "#DDDDDD", cluster_rows = FALSE, cluster_cols = FALSE, )
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.height=9, fig.width=9}
+mat = as.matrix(df_num[which(rowSums(df_num,na.rm=TRUE) < -2),])
+#str(mat)
+pheatmap::pheatmap(mat, na_col = "#DDDDDD", cluster_rows = FALSE, cluster_cols = FALSE, )
+```
+
+
+
+
+```{r, eval = F}
+library(GO.db)
+library(clusterProfiler)
+library(tidyverse)
+library(DESeq2)
+
+NVEs <- na.omit(finalDF$C2[startsWith(finalDF$C2, "NVE")])
+
+
+nve_go <- readRDS("/Volumes/nve_1/reports/lsd1_fin/data/tables/nve_go.RDS")
+names(nve_go) <- c("gene", "term"); nve_go_f <- nve_go[,c(2,1)]
+nve_go_f
+
+goterms <- Term(GOTERM)
+term2names <- data.frame(term=names(goterms), name=goterms)
+
+
+
+
+enrichClusters <- enricher(gene=NVEs, TERM2GENE = nve_go_f, TERM2NAME = term2names)
+barplot(enrichClusters, showCategory=12)
+```
+
+
+
+
+
+
+
+
+
+
