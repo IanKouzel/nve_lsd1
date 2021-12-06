@@ -208,32 +208,6 @@ pheatmap::pheatmap(mat, na_col = "#DDDDDD", cluster_rows = FALSE, cluster_cols =
 
 
 
-```{r, eval = F}
-library(GO.db)
-library(clusterProfiler)
-library(tidyverse)
-library(DESeq2)
-
-NVEs <- na.omit(finalDF$C2[startsWith(finalDF$C2, "NVE")])
-
-
-nve_go <- readRDS("/Volumes/nve_1/reports/lsd1_fin/data/tables/nve_go.RDS")
-names(nve_go) <- c("gene", "term"); nve_go_f <- nve_go[,c(2,1)]
-nve_go_f
-
-goterms <- Term(GOTERM)
-term2names <- data.frame(term=names(goterms), name=goterms)
-
-
-
-
-enrichClusters <- enricher(gene=NVEs, TERM2GENE = nve_go_f, TERM2NAME = term2names)
-barplot(enrichClusters, showCategory=12)
-```
-
-
-
-
 
 
 
