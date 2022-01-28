@@ -1,6 +1,6 @@
 ---
 title: "adult_cells"
-author: "Ivan Kouzel"
+author: "Ian Kouzel"
 date: "2/24/2021"
 output: html_document
 ---
