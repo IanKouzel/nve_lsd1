@@ -46,7 +46,7 @@ head(mybiglist)
 
 ```{r, message=FALSE, warning=FALSE}
 library(stringr)
-nve_annot <- readxl::read_xlsx("~/refs/nve_genes_and_GO/BobZimmermann/nve_master_ortholog_table.20190911.xlsx")
+nve_annot <- readxl::read_xlsx("~/refs/nve_genes_and_GO/nve_master_ortholog_table.xlsx")
 nve_IDs <- nve_annot %>% dplyr::select (GeneId, `ENSEMBL_ID`)
 #nve_IDs %>% select (ENSEMBL_ID) %>% str_replace("NEMVEDRAFT_", "")
 nve_IDs$ENSEMBL_ID <- str_replace(nve_IDs$ENSEMBL_ID, "NEMVEDRAFT_", "") 
